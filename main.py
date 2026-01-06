@@ -9,7 +9,7 @@ from typing import List
 app = FastAPI()
 
 # --- KONFIGURACIJA ---
-API_KEY = "AIzaSyC6SpW9O2Dl8hgCW3jOj7hrWwfWMG2DCxA"
+API_KEY = "AIzaSyBFfPjG5AV-hW8PDUUbmjGYxaN1F42EieI"
 genai.configure(api_key=API_KEY)
 MODEL_NAME = 'gemini-2.5-flash' 
 
