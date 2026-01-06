@@ -15,21 +15,33 @@
         .offcanvas { background: #1e293b; color: white; }
         .nav-pills .nav-link.active { background-color: #0ea5e9; }
         .ban-info { font-size: 0.85rem; color: #ef4444; font-weight: bold; }
+        
+        /* Weather Card Style */
+        .weather-card {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            margin-bottom: 1rem;
+        }
+
         .loading-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9);
             display: none; z-index: 9999; flex-direction: column; align-items: center; justify-content: center;
         }
+
+        #t1, #t2 { line-height: 1.6; }
+        #t1 ul, #t2 ul { padding-left: 1.2rem; }
     </style>
 </head>
 <body>
 
 <div class="loading-overlay" id="loader">
     <div class="spinner-border text-primary" role="status"></div>
-    <div class="mt-3 fw-bold">Sastavljam ekspertski plan...</div>
+    <div class="mt-3 fw-bold">Sastavljam ekspertski plan na osnovu vremena i lokacije...</div>
 </div>
 
 <!-- TOP NAVBAR -->
-<div class="ninja-header d-flex justify-content-between align-items-center">
+<div class="ninja-header d-flex justify-content-between align-items-center shadow-sm">
     <div>
         <i class="fas fa-user-ninja fa-2x text-info me-2"></i>
         <span class="h5 m-0 fw-bold">Feeder Majstor PRO</span>
@@ -41,10 +53,10 @@
 
 <div class="container py-4">
     <!-- INPUT CARD -->
-    <div class="card p-4 mb-4">
+    <div class="card p-4 mb-4 shadow-sm">
         <div class="row g-3">
             <div class="col-md-4">
-                <label class="form-label fw-bold small">📍 LOKACIJA / GRAD</label>
+                <label class="form-label fw-bold small text-secondary text-uppercase">📍 Lokacija / Grad</label>
                 <select id="grad" class="form-select" onchange="updateUI()">
                     {% for grad in data.radnje.keys() %}
                     <option>{{ grad }}</option>
@@ -52,7 +64,7 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label fw-bold small">🐟 CILJANA RIBA</label>
+                <label class="form-label fw-bold small text-secondary text-uppercase">🐟 Ciljana riba</label>
                 <select id="riba" class="form-select" onchange="updateUI()">
                     {% for riba in data.zabrane.keys() %}
                     <option>{{ riba }}</option>
@@ -61,7 +73,7 @@
                 <div id="banInfo" class="ban-info mt-1"></div>
             </div>
             <div class="col-md-4">
-                <label class="form-label fw-bold small">💧 TIP VODE</label>
+                <label class="form-label fw-bold small text-secondary text-uppercase">💧 Tip vode</label>
                 <select id="voda" class="form-select">
                     {% for v in data.vode %}
                     <option>{{ v }}</option>
@@ -69,7 +81,7 @@
                 </select>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-bold small">💰 BUDŽET</label>
+                <label class="form-label fw-bold small text-secondary text-uppercase">💰 Budžet</label>
                 <select id="budzet" class="form-select">
                     <option>Ekonomičan</option>
                     <option selected>Standard</option>
@@ -77,20 +89,20 @@
                 </select>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-bold small">🧠 ISKUSTVO: <span id="expVal" class="text-primary">Srednje</span></label>
+                <label class="form-label fw-bold small text-secondary text-uppercase">🧠 Iskustvo: <span id="expVal" class="text-primary">Srednje</span></label>
                 <input type="range" class="form-range" id="iskustvo" min="1" max="3" value="2" oninput="document.getElementById('expVal').innerText = ['Početnik','Srednje','Pro'][this.value-1]">
             </div>
             <div class="col-12">
-                <label class="form-label fw-bold small mb-2 d-block">🥣 DOSTUPNI BRENDOVI</label>
+                <label class="form-label fw-bold small mb-2 d-block text-secondary text-uppercase">🥣 Dostupni brendovi</label>
                 <div class="d-flex flex-wrap gap-2">
                     {% for b in data.brendovi %}
                     <input type="checkbox" class="btn-check" id="b-{{b}}" name="brand" value="{{b}}" {% if b == "Formax Elegance" %}checked{% endif %}>
-                    <label class="btn btn-outline-secondary btn-sm" for="b-{{b}}">{{b}}</label>
+                    <label class="btn btn-outline-secondary btn-sm rounded-pill px-3" for="b-{{b}}">{{b}}</label>
                     {% endfor %}
                 </div>
             </div>
             <div class="col-12 text-center mt-4">
-                <button onclick="generate()" class="btn btn-primary btn-generate shadow">
+                <button onclick="generate()" class="btn btn-primary btn-generate shadow-lg">
                     SASTAVI PLAN RADA <i class="fas fa-chevron-right ms-2"></i>
                 </button>
             </div>
@@ -98,25 +110,39 @@
     </div>
 
     <!-- RESULTS -->
-    <div id="results" class="card overflow-hidden d-none shadow">
-        <div class="bg-dark p-1">
-            <ul class="nav nav-pills nav-fill">
-                <li class="nav-item"><button class="nav-link active text-white" data-bs-toggle="pill" data-bs-target="#t1">Taktika</button></li>
-                <li class="nav-item"><button class="nav-link text-white" data-bs-toggle="pill" data-bs-target="#t2">Lokacije</button></li>
-                <li class="nav-item"><button class="nav-link text-white" data-bs-toggle="pill" data-bs-target="#t3">Spisak</button></li>
-            </ul>
-        </div>
-        <div class="card-body tab-content p-4 bg-white">
-            <div class="tab-pane fade show active" id="t1"></div>
-            <div class="tab-pane fade" id="t2"></div>
-            <div class="tab-pane fade" id="t3">
-                <div id="pdf-area">
-                    <div id="shoppingItems" class="list-group mb-3"></div>
+    <div id="results" class="d-none">
+        <!-- Vremenska Kartica -->
+        <div class="card weather-card shadow-sm mb-3">
+            <div class="card-body py-2 d-flex align-items-center justify-content-between">
+                <div>
+                    <i class="fas fa-cloud-sun fa-2x me-3"></i>
+                    <span class="fw-bold small text-uppercase">Vremenska situacija na vodi:</span>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-danger btn-sm" onclick="downloadPdf()"><i class="fas fa-file-pdf"></i> PDF</button>
-                    <button class="btn btn-success btn-sm" onclick="shareWA()"><i class="fab fa-whatsapp"></i></button>
-                    <button class="btn btn-primary btn-sm" style="background: #7360f2" onclick="shareViber()"><i class="fab fa-viber"></i></button>
+                <h2 class="m-0 fw-bold" id="displayWeather">--°C</h2>
+            </div>
+        </div>
+
+        <!-- Rezultati Tabs -->
+        <div class="card overflow-hidden shadow">
+            <div class="bg-dark p-1">
+                <ul class="nav nav-pills nav-fill">
+                    <li class="nav-item"><button class="nav-link active text-white" data-bs-toggle="pill" data-bs-target="#t1"><i class="fas fa-clipboard-list me-2"></i>Taktika</button></li>
+                    <li class="nav-item"><button class="nav-link text-white" data-bs-toggle="pill" data-bs-target="#t2"><i class="fas fa-map-location-dot me-2"></i>Gde pecati?</button></li>
+                    <li class="nav-item"><button class="nav-link text-white" data-bs-toggle="pill" data-bs-target="#t3"><i class="fas fa-shopping-basket me-2"></i>Spisak</button></li>
+                </ul>
+            </div>
+            <div class="card-body tab-content p-4 bg-white">
+                <div class="tab-pane fade show active" id="t1"></div>
+                <div class="tab-pane fade" id="t2"></div>
+                <div class="tab-pane fade" id="t3">
+                    <div id="pdf-area">
+                        <div id="shoppingItems" class="list-group list-group-flush mb-3"></div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-danger btn-sm" onclick="downloadPdf()"><i class="fas fa-file-pdf me-1"></i> PDF</button>
+                        <button class="btn btn-success btn-sm" onclick="shareWA()"><i class="fab fa-whatsapp me-1"></i> WhatsApp</button>
+                        <button class="btn btn-primary btn-sm" style="background: #7360f2; border:none;" onclick="shareViber()"><i class="fab fa-viber me-1"></i> Viber</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -176,15 +202,28 @@
                 body: JSON.stringify(payload)
             });
             const d = await res.json();
+            // Ako d.vreme ne postoji, stavi "N/A" ili pročitaj temperaturu koja je već izračunata
+document.getElementById('displayWeather').innerText = d.vreme || "N/A";
+
+document.getElementById('t1').innerHTML = d.taktika || "Nema taktike";
+            
+            // Prikaz temperature
+            document.getElementById('displayWeather').innerText = d.vreme;
+            
+            // Popunjavanje tabova
             document.getElementById('t1').innerHTML = d.taktika;
             document.getElementById('t2').innerHTML = d.mesta;
             document.getElementById('shoppingItems').innerHTML = d.shopping.map(i => `
-                <label class="list-group-item"><input class="form-check-input me-3" type="checkbox"> ${i}</label>
+                <label class="list-group-item d-flex gap-2">
+                    <input class="form-check-input flex-shrink-0" type="checkbox"> 
+                    <span>${i}</span>
+                </label>
             `).join('');
+            
             document.getElementById('results').classList.remove('d-none');
-            window.scrollTo({ top: document.getElementById('results').offsetTop, behavior: 'smooth' });
+            window.scrollTo({ top: document.getElementById('results').offsetTop - 20, behavior: 'smooth' });
         } catch(e) {
-            alert("Limit API zahteva dostignut ili greška na mreži.");
+            alert("Greška pri generisanju plana. Proverite internet vezu ili limit zahteva.");
         } finally {
             document.getElementById('loader').style.display = 'none';
         }
@@ -192,19 +231,30 @@
 
     function downloadPdf() {
         const el = document.getElementById('pdf-area');
-        html2pdf().from(el).set({margin:1, filename:'spisak.pdf'}).save();
+        const grad = document.getElementById('grad').value;
+        html2pdf().from(el).set({
+            margin: 1, 
+            filename: `feeder-spisak-${grad}.pdf`,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        }).save();
     }
 
     function shareWA() {
-        const items = Array.from(document.querySelectorAll('#shoppingItems input:checked')).map(c => "• " + c.parentElement.innerText.trim());
-        window.open(`https://wa.me/?text=${encodeURIComponent("Moj Spisak:\n" + items.join("\n"))}`);
+        const items = Array.from(document.querySelectorAll('#shoppingItems input:checked'))
+                           .map(c => "• " + c.parentElement.innerText.trim());
+        if(items.length === 0) { alert("Štrikliraj stavke koje želiš poslati."); return; }
+        window.open(`https://wa.me/?text=${encodeURIComponent("Moj Feeder Spisak:\n" + items.join("\n"))}`);
     }
 
     function shareViber() {
-        const items = Array.from(document.querySelectorAll('#shoppingItems input:checked')).map(c => "• " + c.parentElement.innerText.trim());
-        window.open(`viber://forward?text=${encodeURIComponent("Moj Spisak:\n" + items.join("\n"))}`);
+        const items = Array.from(document.querySelectorAll('#shoppingItems input:checked'))
+                           .map(c => "• " + c.parentElement.innerText.trim());
+        if(items.length === 0) { alert("Štrikliraj stavke koje želiš poslati."); return; }
+        window.open(`viber://forward?text=${encodeURIComponent("Moj Feeder Spisak:\n" + items.join("\n"))}`);
     }
 
+    // Inicijalno ažuriranje UI pri učitavanju
     updateUI();
 </script>
 
