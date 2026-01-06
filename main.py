@@ -3,14 +3,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import google.generativeai as genai
+import os 
 import requests, json, re
 from typing import List
 
 app = FastAPI()
 
 # --- KONFIGURACIJA ---
-API_KEY = "AIzaSyBFfPjG5AV-hW8PDUUbmjGYxaN1F42EieI"
+API_KEY = os.getenv("GEMINI_API_KEY")
+
 genai.configure(api_key=API_KEY)
+
 MODEL_NAME = 'gemini-2.5-flash' 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
