@@ -8,7 +8,6 @@ import os
 import requests, json, re
 from typing import List
 
-# Učitava varijable iz .env fajla
 load_dotenv() 
 
 app = FastAPI()
@@ -18,28 +17,25 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 if API_KEY:
     genai.configure(api_key=API_KEY)
 
-# Preporuka: 1.5-flash je stabilniji za free kvote
-MODEL_NAME = 'gemini-2.5-flash' 
+MODEL_NAME = 'gemini-1.5-flash' # Stabilniji model za produkciju
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# --- GEOGRAFSKI KONTEKST ZA PRECIZNOST AI MODELA ---
+# --- GEOGRAFSKI KONTEKST ---
 LOKALNI_KONTEKST = {
-    "Kruševac": "Zapadna Morava (potezi Jasika, Čitluk, Kukljin), reka Rasina, jezero Ćelije (potezi Zlatari i Vasići).",
-    "Beograd": "Sava (Makiš, Umka, Boljevci), Dunav (Višnjica, Grocka, Zemunski kej), Ada Safari.",
-    "Niš": "Nišava, Južna Morava (Mramor, Lalinac), Oblačinsko jezero.",
-    "Novi Sad": "Dunav (Kamenjar, Kej), kanal DTD, Šodroš, jezero Međeš.",
-    "Kragujevac": "Jezero Gruža, Šumaričko jezero, Lepenica.",
-    "Čačak": "Zapadna Morava (Međuvršje, Ovčar Banja, Parmenac).",
-    "Kraljevo": "Ibar, Zapadna Morava (Sirča, Adrani).",
-    "Valjevo": "Kolubara, jezero Rovni, Gradac.",
-    "Smederevo": "Dunav (Tvrđava, ušće Jezave), Šalinačko jezero.",
-    "Pančevo": "Tamiš (Kej, Jabuka, Glogonj), Dunav.",
-    "Subotica": "Palićko jezero, Ludaško jezero, kanal DTD."
+    "Kruševac": "Reke: Zapadna Morava (Jasika, Čitluk), Rasina. Komercijale: Ribnjak 'Pista' (Pepeljevac), Jezero 'Mali Borak'.",
+    "Beograd": "Reke: Sava, Dunav. Komercijale: Ada Safari, Mika Alas, Živača, Bečmenska bara, Ribnjak Zmaj.",
+    "Niš": "Reke: Nišava, J. Morava. Komercijale: Jezero Mramor (komercijalni deo), Ribnjak Ponišavlje, Oblačina.",
+    "Novi Sad": "Reke: Dunav, Kanali. Komercijale: Međeš, Jod, Ribnjak Ečka, Kasapska Ada.",
+    "Kragujevac": "Jezera: Gruža. Komercijale: Šumaričko jezero (komercijalna zona), Ribnjak Knić, Jezero u Desimirovcu.",
+    "Čačak": "Reke: Zapadna Morava. Komercijale: Međuvršje (određene zone), Ribnjaci ka Požegi.",
+    "Kraljevo": "Reke: Ibar, Zapadna Morava. KOMERCIJALE: Jezero Oaza (Adrani), Ribnjak Samaila, Jezero Gradište (Vrdila).",
+    "Valjevo": "Reke: Kolubara. Komercijale: Ribnjak Petnica, Jezero Rovni (komercijalni delovi).",
+    "Pančevo": "Reke: Tamiš, Dunav. Komercijale: Jezero Oaza (Opovo), Ribnjak Debeljača.",
+    "Smederevo": "Reke: Dunav. Komercijale: Šalinačko jezero (komercijalni deo), Ribnjaci u okolini."
 }
 
-# --- KOMPLETNI PODACI ---
 DATA = {
     "brendovi": ["Formax Elegance", "Gica Mix", "Maros Mix", "Sensas", "VDE", "Haldorado", "Benzar Mix", "Feedermania", "Meleg Bait", "Bait Service", "CPK", "Browning"],
     "vode": ["Stajaća voda", "Spori tok", "Brza reka", "Komercijala"],
@@ -78,64 +74,69 @@ async def index(request: Request):
 async def generate(req: PlanRequest):
     vreme_info = "N/A"
     try:
-        # 1. Geocoding
         geo_res = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={req.grad}&count=1&format=json", timeout=5).json()
         if "results" in geo_res:
             res = geo_res["results"][0]
-            # 2. Weather
             w_res = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={res['latitude']}&longitude={res['longitude']}&current_weather=true", timeout=5).json()
             vreme_info = f"{w_res['current_weather']['temperature']}°C"
-    except Exception as e:
-        print(f"Weather Fetch Error: {e}")
+    except:
         vreme_info = "N/A"
 
-    # Dohvatanje hintova za grad
-    hint = LOKALNI_KONTEKST.get(req.grad, "lokalne reke i jezera.")
+    hint = LOKALNI_KONTEKST.get(req.grad, "lokalne vode.")
 
+    # STRIKTNI PROMPT
     prompt = f"""
-     Ti si profesionalni feeder ribolovac. 
-    LOKACIJA: {req.grad} (Geografski kontekst: {hint})
-    TRENUTNA TEMP: {vreme_info}
-    ODABRANA VODA: {req.voda}  <-- OVO JE KLJUČNO
-    PARAMETRI: Riba {req.riba}, Brendovi {req.brendovi}, Budžet {req.budzet}, Iskustvo {req.iskustvo}.
+    Ti si feeder ribolovac ekspert iz Srbije.
+    LOKACIJA: {req.grad}
+    HINTOVI ZA MESTA: {hint}
+    TIP VODE: {req.voda}
+    TEMP: {vreme_info}
+    RIBA: {req.riba}, BRENDOVI: {req.brendovi}, BUDŽET: {req.budzet}.
 
-    STRIKTNA PRAVILA:
-    1. Ako je VODA = "Komercijala", OBAVEZNO navedi samo privatna komercijalna jezera i ribnjake iz konteksta: {hint}. NE PREDLAŽI REKE!
-    2. Ako je VODA = "Brza reka" ili "Spori tok", navedi isključivo rečne poteze.
-    3. Taktiku prilagodi temperaturi od {vreme_info}.
+    PRAVILA:
+    1. Ako je TIP VODE 'Komercijala', ignoriši reke i navedi isključivo komercijalna jezera iz hintova.
+    2. Odgovori isključivo u JSON formatu.
     
-    VRATI ISKLJUČIVO JSON:
+    JSON STRUKTURA:
     {{
       "vreme": "{vreme_info}",
-      "taktika": "HTML formatiran tekst",
-      "mesta": "Navedi 3 KONKRETNE LOKACIJE u skladu sa tipom vode ({req.voda}) u okolini {req.grad}. HTML format.",
-      "shopping": ["stavka 1", "stavka 2"]
+      "taktika": "HTML tekst sa planom",
+      "mesta": "HTML tekst sa 3 konkretne lokacije",
+      "shopping": ["artikal 1", "artikal 2"]
     }}
     """
-    
+
+    # ISKLJUČIVANJE SAFETY FILTERA (da ne blokira reči kao što su udica)
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    ]
+
     try:
         model = genai.GenerativeModel(MODEL_NAME)
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, safety_settings=safety_settings)
         
-        # Ekstrakcija JSON-a
+        # Provera da li AI uopšte vratio tekst
+        if not response.text:
+            raise Exception("AI je blokirao odgovor zbog safety filtera.")
+
+        # Čišćenje i ekstrakcija JSON-a
         json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
-            
-            # OSIGURANJE: Ako AI zaboravi ključ "vreme", mi ga dodajemo pre slanja frontendu
-            if "vreme" not in data or data["vreme"] == "undefined":
-                data["vreme"] = vreme_info
-                
+            if "vreme" not in data: data["vreme"] = vreme_info
             return data
         
-        raise Exception("Neispravan JSON format od AI modela")
+        raise Exception("AI nije vratio ispravan JSON format.")
 
     except Exception as e:
-        print(f"Generate Error: {e}")
-        # Fallback odgovor u slučaju greške
+        print(f"CRITICAL ERROR: {str(e)}")
+        # Fallback koji uvek radi
         return {
             "vreme": vreme_info,
-            "taktika": "Trenutno ne mogu da generišem plan. Molim vas pokušajte ponovo.",
-            "mesta": f"Proverite lokacije u blizini: {hint}",
-            "shopping": []
+            "taktika": "Trenutno imamo poteškoća. Osnovni savet: Prilagodite primamu temperaturi i koristite laganiji pribor.",
+            "mesta": f"Preporučena mesta za grad {req.grad} ({req.voda}): {hint}",
+            "shopping": ["Osnovna feeder hrana", "Mamci (crvići/kukuruz)", "Feeder predvezi"]
         }
