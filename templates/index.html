@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feeder Pro | 2026</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { background: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
+        .ninja-header { background: #1e293b; color: white; padding: 15px; border-bottom: 4px solid #0ea5e9; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .btn-generate { max-width: 350px; width: 100%; font-weight: bold; border-radius: 30px; padding: 12px; }
+        .offcanvas { background: #1e293b; color: white; }
+        .nav-pills .nav-link.active { background-color: #0ea5e9; }
+        .ban-info { font-size: 0.85rem; color: #ef4444; font-weight: bold; }
+        .loading-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9);
+            display: none; z-index: 9999; flex-direction: column; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loader">
+    <div class="spinner-border text-primary" role="status"></div>
+    <div class="mt-3 fw-bold">Sastavljam ekspertski plan...</div>
+</div>
+
+<!-- TOP NAVBAR -->
+<div class="ninja-header d-flex justify-content-between align-items-center">
+    <div>
+        <i class="fas fa-user-ninja fa-2x text-info me-2"></i>
+        <span class="h5 m-0 fw-bold">Feeder Majstor PRO</span>
+    </div>
+    <button class="btn btn-outline-info" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
+        <i class="fas fa-store"></i>
+    </button>
+</div>
+
+<div class="container py-4">
+    <!-- INPUT CARD -->
+    <div class="card p-4 mb-4">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold small">📍 LOKACIJA / GRAD</label>
+                <select id="grad" class="form-select" onchange="updateUI()">
+                    {% for grad in data.radnje.keys() %}
+                    <option>{{ grad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small">🐟 CILJANA RIBA</label>
+                <select id="riba" class="form-select" onchange="updateUI()">
+                    {% for riba in data.zabrane.keys() %}
+                    <option>{{ riba }}</option>
+                    {% endfor %}
+                </select>
+                <div id="banInfo" class="ban-info mt-1"></div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small">💧 TIP VODE</label>
+                <select id="voda" class="form-select">
+                    {% for v in data.vode %}
+                    <option>{{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold small">💰 BUDŽET</label>
+                <select id="budzet" class="form-select">
+                    <option>Ekonomičan</option>
+                    <option selected>Standard</option>
+                    <option>Premium</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold small">🧠 ISKUSTVO: <span id="expVal" class="text-primary">Srednje</span></label>
+                <input type="range" class="form-range" id="iskustvo" min="1" max="3" value="2" oninput="document.getElementById('expVal').innerText = ['Početnik','Srednje','Pro'][this.value-1]">
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold small mb-2 d-block">🥣 DOSTUPNI BRENDOVI</label>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for b in data.brendovi %}
+                    <input type="checkbox" class="btn-check" id="b-{{b}}" name="brand" value="{{b}}" {% if b == "Formax Elegance" %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="b-{{b}}">{{b}}</label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col-12 text-center mt-4">
+                <button onclick="generate()" class="btn btn-primary btn-generate shadow">
+                    SASTAVI PLAN RADA <i class="fas fa-chevron-right ms-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="card overflow-hidden d-none shadow">
+        <div class="bg-dark p-1">
+            <ul class="nav nav-pills nav-fill">
+                <li class="nav-item"><button class="nav-link active text-white" data-bs-toggle="pill" data-bs-target="#t1">Taktika</button></li>
+                <li class="nav-item"><button class="nav-link text-white" data-bs-toggle="pill" data-bs-target="#t2">Lokacije</button></li>
+                <li class="nav-item"><button class="nav-link text-white" data-bs-toggle="pill" data-bs-target="#t3">Spisak</button></li>
+            </ul>
+        </div>
+        <div class="card-body tab-content p-4 bg-white">
+            <div class="tab-pane fade show active" id="t1"></div>
+            <div class="tab-pane fade" id="t2"></div>
+            <div class="tab-pane fade" id="t3">
+                <div id="pdf-area">
+                    <div id="shoppingItems" class="list-group mb-3"></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-danger btn-sm" onclick="downloadPdf()"><i class="fas fa-file-pdf"></i> PDF</button>
+                    <button class="btn btn-success btn-sm" onclick="shareWA()"><i class="fab fa-whatsapp"></i></button>
+                    <button class="btn btn-primary btn-sm" style="background: #7360f2" onclick="shareViber()"><i class="fab fa-viber"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SIDEBAR (OFFCANVAS) -->
+<div class="offcanvas offcanvas-end" id="sidebar">
+    <div class="offcanvas-header border-bottom border-secondary">
+        <h5 class="offcanvas-title fw-bold">LOKALNE INFORMACIJE</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div class="mb-4">
+            <h6><i class="fas fa-store text-info me-2"></i>Preporučene radnje:</h6>
+            <div id="sidebarShops" class="ps-4 text-white-50"></div>
+        </div>
+        <a id="mapLink" target="_blank" class="btn btn-info w-100">
+            <i class="fas fa-map-marked-alt me-2"></i>Otvori Google Mape
+        </a>
+    </div>
+</div>
+
+<script id="server-data" type="application/json">{{ data | tojson }}</script>
+
+<script>
+    const DATA = JSON.parse(document.getElementById('server-data').textContent);
+
+    function updateUI() {
+        const grad = document.getElementById('grad').value;
+        const riba = document.getElementById('riba').value;
+        
+        // Update Sidebar
+        const shops = DATA.radnje[grad] || [];
+        document.getElementById('sidebarShops').innerHTML = shops.map(s => `• ${s}`).join('<br>');
+        document.getElementById('mapLink').href = `https://www.google.com/maps/search/ribolovacka+oprema+${grad}`;
+        
+        // Update Ban
+        document.getElementById('banInfo').innerText = "Lovostaj: " + DATA.zabrane[riba];
+    }
+
+    async function generate() {
+        document.getElementById('loader').style.display = 'flex';
+        const payload = {
+            grad: document.getElementById('grad').value,
+            brendovi: Array.from(document.querySelectorAll('input[name="brand"]:checked')).map(c => c.value),
+            voda: document.getElementById('voda').value,
+            riba: document.getElementById('riba').value,
+            iskustvo: document.getElementById('expVal').innerText,
+            budzet: document.getElementById('budzet').value
+        };
+
+        try {
+            const res = await fetch('/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const d = await res.json();
+            document.getElementById('t1').innerHTML = d.taktika;
+            document.getElementById('t2').innerHTML = d.mesta;
+            document.getElementById('shoppingItems').innerHTML = d.shopping.map(i => `
+                <label class="list-group-item"><input class="form-check-input me-3" type="checkbox"> ${i}</label>
+            `).join('');
+            document.getElementById('results').classList.remove('d-none');
+            window.scrollTo({ top: document.getElementById('results').offsetTop, behavior: 'smooth' });
+        } catch(e) {
+            alert("Limit API zahteva dostignut ili greška na mreži.");
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+        }
+    }
+
+    function downloadPdf() {
+        const el = document.getElementById('pdf-area');
+        html2pdf().from(el).set({margin:1, filename:'spisak.pdf'}).save();
+    }
+
+    function shareWA() {
+        const items = Array.from(document.querySelectorAll('#shoppingItems input:checked')).map(c => "• " + c.parentElement.innerText.trim());
+        window.open(`https://wa.me/?text=${encodeURIComponent("Moj Spisak:\n" + items.join("\n"))}`);
+    }
+
+    function shareViber() {
+        const items = Array.from(document.querySelectorAll('#shoppingItems input:checked')).map(c => "• " + c.parentElement.innerText.trim());
+        window.open(`viber://forward?text=${encodeURIComponent("Moj Spisak:\n" + items.join("\n"))}`);
+    }
+
+    updateUI();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
