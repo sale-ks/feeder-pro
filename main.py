@@ -17,7 +17,7 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 if API_KEY:
     genai.configure(api_key=API_KEY)
 
-MODEL_NAME = 'gemini-1.5-flash' # Stabilniji model za produkciju
+MODEL_NAME = 'gemini-2.5-flash' # Stabilniji model za produkciju
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
