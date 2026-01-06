@@ -93,20 +93,22 @@ async def generate(req: PlanRequest):
     hint = LOKALNI_KONTEKST.get(req.grad, "lokalne reke i jezera.")
 
     prompt = f"""
-    Ti si profesionalni feeder ribolovac. 
-    LOKACIJA: {req.grad} (Kontekst: {hint})
-    VREME: {vreme_info}
-    PARAMETRI: Riba {req.riba}, Voda {req.voda}, Brendovi {req.brendovi}, Budžet {req.budzet}, Iskustvo {req.iskustvo}.
+     Ti si profesionalni feeder ribolovac. 
+    LOKACIJA: {req.grad} (Geografski kontekst: {hint})
+    TRENUTNA TEMP: {vreme_info}
+    ODABRANA VODA: {req.voda}  <-- OVO JE KLJUČNO
+    PARAMETRI: Riba {req.riba}, Brendovi {req.brendovi}, Budžet {req.budzet}, Iskustvo {req.iskustvo}.
 
-    ZADATAK:
-    1. Prilagodi taktiku (prihrana, mamac) temperaturi od {vreme_info}.
-    2. Navedi 3 KONKRETNA MESTA (reke/jezera) u okolini grada {req.grad} koristeći hint: {hint}.
+    STRIKTNA PRAVILA:
+    1. Ako je VODA = "Komercijala", OBAVEZNO navedi samo privatna komercijalna jezera i ribnjake iz konteksta: {hint}. NE PREDLAŽI REKE!
+    2. Ako je VODA = "Brza reka" ili "Spori tok", navedi isključivo rečne poteze.
+    3. Taktiku prilagodi temperaturi od {vreme_info}.
     
-    VRATI ISKLJUČIVO JSON OBJEKAT:
+    VRATI ISKLJUČIVO JSON:
     {{
       "vreme": "{vreme_info}",
       "taktika": "HTML formatiran tekst",
-      "mesta": "HTML formatiran tekst sa 3 lokacije",
+      "mesta": "Navedi 3 KONKRETNE LOKACIJE u skladu sa tipom vode ({req.voda}) u okolini {req.grad}. HTML format.",
       "shopping": ["stavka 1", "stavka 2"]
     }}
     """
